@@ -1,1 +1,4 @@
 __pycache__/
+
+# Windows NTFS stream artifacts
+*:Zone.Identifier

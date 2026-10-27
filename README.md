@@ -26,6 +26,35 @@ The official upstream README is preserved in
 |---|---|
 | `README.md` | This fork: install, switches, adapter behavior, A770 additions |
 | `UPSTREAM_README.md` | Official upstream README, preserved verbatim |
+| `CHANGELOG.md` | Merge history and component provenance |
+
+## Merged components
+
+This node is now the single install for three layers:
+
+| Component | Origin | Kill switch |
+|---|---|---|
+| XPU adapters, fixes, provider takeover, nodes | this repo (upstream `intel/llm-scaler`) | the existing `OMNIXPU_*` flags |
+| Intel XPU VRAM accounting (`memory/avs_vram_fix.py`, PR #15487 logic, frontend setting, HTTP routes) | absorbed from [ComfyUI-AVS-Intel-XPU-VRAM-Fix](https://github.com/alvasafin-art/ComfyUI-AVS-Intel-XPU-VRAM-Fix) (GPL-3.0) | Settings → AVS XPU (unchanged; `user/avs_xpu_vram_fix/config.json` and the `/avs-xpu-vram-fix/*` routes are preserved) |
+| Global torch shields (`shields/`): fp64→fp32 creation/cast, quantile aspect, SDPA dtype align, linear/conv/norm dtype align, Dynamo isolation, INT8 pre-quantized enforcer | absorbed from the XPU FP64 master patch (author-requested) | `OMNIXPU_SHIELDS_ENABLE=0`, or per shield: `OMNIXPU_SHIELD_INT8_ENFORCER`, `OMNIXPU_SHIELD_FP64_CREATION`, `OMNIXPU_SHIELD_SYCL_QUANTILE`, `OMNIXPU_SHIELD_SDPA_ALIGN` (fast path separately: `OMNIXPU_SHIELD_SDPA_FASTPATH`), `OMNIXPU_SHIELD_DTYPE_ALIGN`, `OMNIXPU_SHIELD_DYNAMO_ISOLATION`, `OMNIXPU_SHIELD_MEMORY_UNIFIED` |
+
+Fixed load order (do not reorder casually): prestartup (pre-torch) → probe/config →
+math-stage shields → unified memory wrapper → adapters/fixes → Dynamo-isolation
+shield → nodes. Two rules the order enforces:
+
+- **One owner for `model_management.get_free_memory`.** The unified wrapper (the
+  AVS PR #15487 formula) is the only installed wrapper. The Windows boundary trim
+  in `adapters/dynamic_vram.py` keeps its VBAR reclaim job but defers the wrapper,
+  so the AVS toggle stays effective instead of being silently shadowed.
+- **Dynamo isolation respects wheel boundaries.** `disallow_in_graph` is not
+  applied to namespaces that already ship Dynamo dispatch boundaries
+  (`omni_xpu_kernel._compile_ops`), because forcing a graph break there trips the
+  `transformer_options` resume path. torch.compile works on Windows 11 with
+  Torch 2.14.
+
+The OmniXPU Status node reports shields and the memory layer alongside adapter
+components. The merged tree is distributed under GPL-3.0 (inherited from the
+absorbed AVS component); pre-existing upstream code keeps its terms.
 
 ## Fork changes vs upstream
 

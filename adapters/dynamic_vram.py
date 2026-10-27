@@ -30,6 +30,11 @@ def _patch_free_memory(model_management, torch_module):
     original = model_management.get_free_memory
     if hasattr(original, _FREE_MEMORY_MARKER):
         return
+    if getattr(original, "_avs_xpu_vram_fix", False):
+        # The unified memory layer (memory/avs_vram_fix.py, absorbed from the AVS
+        # VRAM fix) owns the wrapper now; its PR #15487 formula is equivalent to
+        # this one for XPU devices, and it keeps the runtime toggle effective.
+        return
 
     @functools.wraps(original)
     def free_memory(dev=None, torch_free_too=False):

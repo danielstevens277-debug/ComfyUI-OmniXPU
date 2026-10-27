@@ -251,6 +251,21 @@ def get_status():
     return list(_registry)
 
 
+def register_record(record: dict) -> None:
+    """Register a status record from an absorbed layer (shields, memory).
+
+    Mirrors :func:`_record` for components that are not in ``COMPONENTS``.
+    """
+    _registry.append(dict(record))
+    reason = record.get("reason") or ""
+    if record.get("status") == "applied":
+        log.info("[OmniXPU] %s: applied", record.get("name"))
+    elif record.get("status") == "skipped":
+        log.info("[OmniXPU] %s: skipped (%s)", record.get("name"), reason)
+    elif record.get("status") == "failed":
+        log.warning("[OmniXPU] %s: FAILED (%s)", record.get("name"), reason)
+
+
 def get_components():
     return [
         {

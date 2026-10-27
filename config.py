@@ -1,6 +1,10 @@
 import os
 
 
+def _flag(name: str, default: str = "1") -> bool:
+    return os.environ.get(name, default) != "0"
+
+
 class Config:
     """Feature flags controlled via environment variables.
 
@@ -104,6 +108,36 @@ class Config:
             master
             and os.environ.get("OMNIXPU_MOSS_IMAGE_COMPAT", "1") != "0"
         )
+
+        # ── Global shields, absorbed from the XPU FP64 master patch ─────────
+        # The shield author requires them on; each stays individually switchable
+        # per the contribution boundary (global correctness workarounds must be
+        # opt-out-able and carry an upstream removal plan).
+        shields = os.environ.get("OMNIXPU_SHIELDS_ENABLE", "1") != "0"
+        self.shield_int8_enforcer = shields and _flag("OMNIXPU_SHIELD_INT8_ENFORCER")
+        self.shield_fp64_creation = shields and _flag("OMNIXPU_SHIELD_FP64_CREATION")
+        self.shield_sycl_quantile = shields and _flag("OMNIXPU_SHIELD_SYCL_QUANTILE")
+        self.shield_sdpa_align = shields and _flag("OMNIXPU_SHIELD_SDPA_ALIGN")
+        self.shield_sdpa_fastpath = (
+            self.shield_sdpa_align and _flag("OMNIXPU_SHIELD_SDPA_FASTPATH")
+        )
+        self.shield_dynamo_isolation = shields and _flag("OMNIXPU_SHIELD_DYNAMO_ISOLATION")
+        self.shield_dtype_align = shields and _flag("OMNIXPU_SHIELD_DTYPE_ALIGN")
+        # Memory accounting: one unified wrapper (AVS PR #15487 logic) shared by
+        # the old AVS toggle and the OmniXPU Windows boundary trim.
+        self.memory_unified_wrapper = shields and _flag("OMNIXPU_SHIELD_MEMORY_UNIFIED")
+
+        # Stage map for shields/__init__.py: "math" runs before the adapters so
+        # adapter dispatch sees the patched creation/cast surface; "dynamo" runs
+        # after them, once the Kitchen/kernel compile boundaries are loaded.
+        self.shield_stages = {
+            "int8_enforcer": "math",
+            "fp64_creation": "math",
+            "sycl_quantile": "math",
+            "sdpa_align": "math",
+            "dtype_align": "math",
+            "dynamo_isolation": "dynamo",
+        }
 
 
 config = Config()
